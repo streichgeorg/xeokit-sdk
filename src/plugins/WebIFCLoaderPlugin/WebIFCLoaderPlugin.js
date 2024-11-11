@@ -824,11 +824,36 @@ class WebIFCLoaderPlugin extends Plugin {
         }
     }
 
+    _getShallowLine(modelID, expressID, depth) {
+        const lineData = this._ifcAPI.GetLine(modelID, expressID);
+
+        if (depth === 0) {
+            return lineData;
+        }
+
+        Object.keys(lineData).forEach(propertyName => {
+            let property = lineData[propertyName];
+            if (property && property.type === 5) {
+                if (property.value) lineData[propertyName] = this._getShallowLine(modelID, property.value, depth - 1);
+            }
+            else if (Array.isArray(property) && property.length > 0 && property[0] && property[0].type === 5) {
+                for (let i = 0; i < property.length; i++) {
+                    if (property[i].value) {
+                        lineData[propertyName][i] = this._getShallowLine(modelID, property[i].value, depth - 1);
+                    }
+                }
+            }
+        });
+
+        return lineData;
+    }
+
     _parsePropertySets(ctx) {
         const lines = this._ifcAPI.GetLineIDsWithType(ctx.modelID, this._webIFC.IFCRELDEFINESBYPROPERTIES);
         for (let i = 0; i < lines.size(); i++) {
             let relID = lines.get(i);
-            let rel = this._ifcAPI.GetLine(ctx.modelID, relID, true);
+            let rel = this._getShallowLine(ctx.modelID, relID, 2);
+
             if (rel) {
                 const relatingPropertyDefinition = rel.RelatingPropertyDefinition;
                 if (!relatingPropertyDefinition) {
